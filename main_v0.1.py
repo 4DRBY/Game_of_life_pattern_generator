@@ -838,55 +838,75 @@ class GameOfLifeUI:
         self.font_small = pygame.font.SysFont('Arial', 14)
         self.font_title = pygame.font.SysFont('Arial', 18, bold=True)
         
-        # Main buttons
-        self.btn_pause = pygame.Rect(10, 10, 80, 30)
-        self.btn_step = pygame.Rect(100, 10, 80, 30)
-        self.btn_clear = pygame.Rect(190, 10, 80, 30)
-        
-        # Speed control - repositioned for better spacing
-        self.btn_speed_down = pygame.Rect(320, 10, 30, 30)
-        self.btn_speed_up = pygame.Rect(280, 10, 30, 30)
-        
-        # Settings button moved further to the right
-        self.btn_settings = pygame.Rect(440, 10, 80, 30)
-        
-        # Pattern panel
-        self.sidebar_rect = pygame.Rect(10, 50, self.UI_SIDEBAR_WIDTH, self.screen.get_height() - 100)
+        # Main buttons - Using UI_BUTTON_SPACING for horizontal layout
+        current_x = self.UI_BUTTON_SPACING
+        self.btn_pause = pygame.Rect(current_x, self.UI_BUTTON_SPACING, 80, self.UI_BUTTON_HEIGHT)
+        current_x += 80 + self.UI_BUTTON_SPACING
+        self.btn_step = pygame.Rect(current_x, self.UI_BUTTON_SPACING, 80, self.UI_BUTTON_HEIGHT)
+        current_x += 80 + self.UI_BUTTON_SPACING
+        self.btn_clear = pygame.Rect(current_x, self.UI_BUTTON_SPACING, 80, self.UI_BUTTON_HEIGHT)
+        current_x += 80 + self.UI_BUTTON_SPACING
+
+        # Speed control
+        self.btn_speed_up = pygame.Rect(current_x, self.UI_BUTTON_SPACING, 30, self.UI_BUTTON_HEIGHT)
+        current_x += 30 + self.UI_BUTTON_SPACING
+        self.btn_speed_down = pygame.Rect(current_x, self.UI_BUTTON_SPACING, 30, self.UI_BUTTON_HEIGHT)
+        current_x += 30 # Remove spacing here, label will provide it
+
+        # Speed label position will be handled in render_ui
+        self.speed_label_x_pos = current_x # Store for render_ui
+        current_x += 70 + self.UI_BUTTON_SPACING # Approx width for "Speed: XX" + spacing
+
+        # Settings button
+        self.btn_settings = pygame.Rect(current_x, self.UI_BUTTON_SPACING, 80, self.UI_BUTTON_HEIGHT)
+        self.TOP_CONTROLS_BOTTOM_Y = self.UI_BUTTON_SPACING + self.UI_BUTTON_HEIGHT + self.UI_BUTTON_SPACING
+
+
+        # Define left sidebar (Pattern Library)
+        self.LEFT_SIDEBAR_PADDING = 10 # Renamed from UI_BUTTON_SPACING for clarity if different
+        self.sidebar_rect = pygame.Rect(
+            self.LEFT_SIDEBAR_PADDING,
+            self.TOP_CONTROLS_BOTTOM_Y, # Position below top buttons
+            self.UI_SIDEBAR_WIDTH,
+            self.screen.get_height() - self.TOP_CONTROLS_BOTTOM_Y - self.LEFT_SIDEBAR_PADDING
+        )
         
         # Category tabs
         self.category_tabs = []
-        self.create_category_tabs()
+        self.create_category_tabs() # Depends on sidebar_rect.x, sidebar_rect.y
         
         # Pattern list area
+        self.PATTERN_AREA_TOP_MARGIN = 30 # Space for title "Pattern Library"
+        self.CATEGORY_TABS_AREA_HEIGHT = 60 # Approximate height for category tabs
         self.pattern_area = pygame.Rect(
             self.sidebar_rect.x + 5, 
-            self.sidebar_rect.y + 80,  # Leave space for category tabs
-            self.UI_SIDEBAR_WIDTH - 10,
-            self.sidebar_rect.height - 120
+            self.sidebar_rect.y + self.PATTERN_AREA_TOP_MARGIN + self.CATEGORY_TABS_AREA_HEIGHT,
+            self.UI_SIDEBAR_WIDTH - 10, # 5px padding on each side
+            self.sidebar_rect.height - (self.PATTERN_AREA_TOP_MARGIN + self.CATEGORY_TABS_AREA_HEIGHT + 95) # 95 for info_rect and padding
         )
         
         # Scroll buttons
         self.pattern_scroll_up = pygame.Rect(
-            self.sidebar_rect.right - 25, 
+            self.pattern_area.right - 20, # Position inside the pattern_area
             self.pattern_area.y, 
             20, 20
         )
         self.pattern_scroll_down = pygame.Rect(
-            self.sidebar_rect.right - 25, 
+            self.pattern_area.right - 20, # Position inside the pattern_area
             self.pattern_area.bottom - 20, 
             20, 20
         )
         
         # Rule buttons
         self.rule_buttons = {}
-        self.create_rule_buttons()
+        # self.create_rule_buttons() # Will be called after right_container_rect is defined
         
         # Pattern information
         self.pattern_info_rect = pygame.Rect(
             self.sidebar_rect.x + 5,
-            self.pattern_area.bottom + 10,
+            self.pattern_area.bottom + self.UI_BUTTON_SPACING, # Spacing below pattern list
             self.UI_SIDEBAR_WIDTH - 10,
-            80
+            80 # Height for pattern info
         )
         
         # Help text area - positioned at bottom right instead of bottom left
@@ -901,7 +921,20 @@ class GameOfLifeUI:
         
         # Apply the current theme colors - after all UI elements are initialized
         self.apply_theme(self.current_theme)
+
+        # Define right container for stats and rules
+        self.RIGHT_CONTAINER_WIDTH = 200
+        self.RIGHT_CONTAINER_PADDING = 10
+        self.right_container_rect = pygame.Rect(
+            self.screen.get_width() - self.RIGHT_CONTAINER_WIDTH - self.RIGHT_CONTAINER_PADDING,
+            self.TOP_CONTROLS_BOTTOM_Y, # Position below top controls
+            self.RIGHT_CONTAINER_WIDTH,
+            self.screen.get_height() - self.TOP_CONTROLS_BOTTOM_Y - self.RIGHT_CONTAINER_PADDING # Adjust height dynamically
+        )
         
+        # Now create rule buttons as they depend on right_container_rect
+        self.create_rule_buttons()
+
         # Main loop
         self.clock = pygame.time.Clock()
         self.running = True
@@ -989,13 +1022,26 @@ class GameOfLifeUI:
             })
     
     def create_rule_buttons(self):
-        """Create buttons for each rule preset."""
-        x_pos = self.screen.get_width() - 130
-        y_pos = 120
-        btn_width = 120
+        """Create buttons for each rule preset within the right container."""
+        # Ensure this is called after right_container_rect and last_stat_y_position are set
+        if not hasattr(self, 'right_container_rect') or not hasattr(self, 'last_stat_y_position'):
+            # Fallback or error, though __init__ order should prevent this
+            print("Warning: right_container_rect or last_stat_y_position not initialized when creating rule buttons.")
+            x_pos = self.screen.get_width() - 150
+            y_pos = 150
+        else:
+            x_pos = self.right_container_rect.x + self.RIGHT_CONTAINER_PADDING
+            # Position rules below the stats, with some additional spacing
+            y_pos = self.last_stat_y_position + self.RIGHT_CONTAINER_PADDING * 2
+
+        btn_width = self.right_container_rect.width - (self.RIGHT_CONTAINER_PADDING * 2)
         btn_height = self.UI_BUTTON_HEIGHT
         spacing = self.UI_BUTTON_SPACING
         
+        # Store the y_pos for the "Rules:" label
+        self.rules_label_y_pos = y_pos
+        y_pos += self.UI_BUTTON_HEIGHT # Space for the label
+
         for rule_name in self.rule_presets:
             self.rule_buttons[rule_name] = pygame.Rect(x_pos, y_pos, btn_width, btn_height)
             y_pos += btn_height + spacing
@@ -1239,16 +1285,21 @@ class GameOfLifeUI:
         self.preview_surface = pygame.Surface((width, height), pygame.SRCALPHA)
         
         # Update sidebar position and size
-        self.sidebar_rect.height = height - 100
+        self.sidebar_rect.y = self.TOP_CONTROLS_BOTTOM_Y
+        self.sidebar_rect.height = height - self.TOP_CONTROLS_BOTTOM_Y - self.LEFT_SIDEBAR_PADDING
         
-        # Update pattern area size
-        self.pattern_area.height = self.sidebar_rect.height - 120
+        # Update pattern area (dependent on sidebar_rect)
+        self.pattern_area.y = self.sidebar_rect.y + self.PATTERN_AREA_TOP_MARGIN + self.CATEGORY_TABS_AREA_HEIGHT
+        self.pattern_area.height = self.sidebar_rect.height - (self.PATTERN_AREA_TOP_MARGIN + self.CATEGORY_TABS_AREA_HEIGHT + 95) # 95 for info_rect and padding
         
-        # Update scroll button positions
+        # Update scroll button positions (dependent on pattern_area)
+        self.pattern_scroll_up.y = self.pattern_area.y
+        self.pattern_scroll_up.right = self.pattern_area.right # Align to the right of pattern_area
         self.pattern_scroll_down.y = self.pattern_area.bottom - 20
+        self.pattern_scroll_down.right = self.pattern_area.right # Align to the right of pattern_area
         
-        # Update pattern info rect
-        self.pattern_info_rect.y = self.pattern_area.bottom + 10
+        # Update pattern info rect (dependent on pattern_area)
+        self.pattern_info_rect.y = self.pattern_area.bottom + self.UI_BUTTON_SPACING
         
         # Update help text position
         self.help_text_rect.x = width - 600
@@ -1260,6 +1311,11 @@ class GameOfLifeUI:
             height // 2 - 150,
             400, 300
         )
+
+        # Update right container position and size
+        self.right_container_rect.x = width - self.RIGHT_CONTAINER_WIDTH - self.RIGHT_CONTAINER_PADDING
+        self.right_container_rect.y = self.TOP_CONTROLS_BOTTOM_Y
+        self.right_container_rect.height = height - self.TOP_CONTROLS_BOTTOM_Y - self.RIGHT_CONTAINER_PADDING
         
         # Recreate rule buttons on the right side
         self.rule_buttons = {}
@@ -1539,10 +1595,10 @@ class GameOfLifeUI:
         # Draw speed control buttons
         pygame.draw.rect(self.screen, self.COLOR_BUTTON, self.btn_speed_up)
         pygame.draw.rect(self.screen, self.COLOR_BUTTON, self.btn_speed_down)
-        self.screen.blit(self.font.render("+", True, self.COLOR_TEXT), (self.btn_speed_up.x + 10, self.btn_speed_up.y + 5))
-        self.screen.blit(self.font.render("-", True, self.COLOR_TEXT), (self.btn_speed_down.x + 10, self.btn_speed_down.y + 5))
+        self.screen.blit(self.font.render("+", True, self.COLOR_TEXT), (self.btn_speed_up.x + 10, self.btn_speed_up.y + (self.UI_BUTTON_HEIGHT - self.font.get_height()) // 2))
+        self.screen.blit(self.font.render("-", True, self.COLOR_TEXT), (self.btn_speed_down.x + 10, self.btn_speed_down.y + (self.UI_BUTTON_HEIGHT - self.font.get_height()) // 2))
         self.screen.blit(self.font.render(f"Speed: {self.simulation_speed}", True, self.COLOR_TEXT), 
-                       (self.btn_speed_up.x + 80, self.btn_speed_up.y +5))
+                       (self.speed_label_x_pos, self.btn_speed_up.y + (self.UI_BUTTON_HEIGHT - self.font.get_height()) // 2))
         
         # Draw status info
         generation_text = f"Generation: {self.game.generation}"
@@ -1555,10 +1611,14 @@ class GameOfLifeUI:
         cursor_text = f"Cursor: ({grid_x}, {grid_y})"
         theme_text = f"Theme: {self.current_theme}"
         
-        # Create status info panel
-        status_x = self.screen.get_width() - 300
-        status_y = 50
-        status_spacing = 20
+        # Draw Right Container Background (optional, for visual separation)
+        pygame.draw.rect(self.screen, self.COLOR_SIDEBAR_BG, self.right_container_rect) # Use a similar BG as sidebar
+        pygame.draw.rect(self.screen, (60, 60, 65), self.right_container_rect, 1)  # Border
+
+        # Create status info panel within the right container
+        status_x = self.right_container_rect.x + self.RIGHT_CONTAINER_PADDING
+        status_y = self.right_container_rect.y + self.RIGHT_CONTAINER_PADDING
+        status_spacing = 20 # Vertical spacing between lines of text
         
         self.screen.blit(self.font.render(generation_text, True, self.COLOR_TEXT), (status_x, status_y))
         self.screen.blit(self.font.render(population_text, True, self.COLOR_TEXT), (status_x, status_y + status_spacing))
@@ -1566,6 +1626,9 @@ class GameOfLifeUI:
         self.screen.blit(self.font.render(cursor_text, True, self.COLOR_TEXT), (status_x, status_y + status_spacing * 3))
         self.screen.blit(self.font.render(theme_text, True, self.COLOR_TEXT), (status_x, status_y + status_spacing * 4))
         
+        # Store the y-position after the last stat item for rule buttons positioning
+        self.last_stat_y_position = status_y + status_spacing * 5
+
         # Draw pattern selection panel background
         pygame.draw.rect(self.screen, self.COLOR_SIDEBAR_BG, self.sidebar_rect)
         pygame.draw.rect(self.screen, (60, 60, 65), self.sidebar_rect, 1)  # Border
@@ -1657,9 +1720,10 @@ class GameOfLifeUI:
                 inst_text = self.font_small.render("Click to place, ESC/Right-click to cancel", True, self.COLOR_TEXT)
                 self.screen.blit(inst_text, (self.pattern_info_rect.x + 10, self.pattern_info_rect.y + 50))
         
-        # Draw rule selection label
-        self.screen.blit(self.font.render("Rules:", True, self.COLOR_TEXT), 
-                       (self.screen.get_width() - 130, 100))
+        # Draw rule selection label within the right container
+        if hasattr(self, 'rules_label_y_pos'): # Ensure it's initialized
+            self.screen.blit(self.font.render("Rules:", True, self.COLOR_TEXT),
+                           (self.right_container_rect.x + self.RIGHT_CONTAINER_PADDING, self.rules_label_y_pos))
         
         # Draw rule buttons
         for rule_name, btn_rect in self.rule_buttons.items():
