@@ -72,7 +72,7 @@ You need to have Python 3 and pip installed on your system.
 1.  **Clone the repository:**
 
     ```sh
-    git clone https://github.com/your_username/ultimate-game-of-life.git
+    git clone https://github.com/your_username/Game_of_life_pattern_generator.git
     cd ultimate-game-of-life
     ```
 
